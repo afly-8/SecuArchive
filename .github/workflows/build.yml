@@ -8,24 +8,7 @@ on:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-            output: 'SecuArchive-x86_64.app'
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            output: 'SecuArchive-arm64.app'
-          - platform: 'ubuntu-22.04'
-            args: ''
-            output: 'SecuArchive'
-          - platform: 'windows-latest'
-            args: '--target x86_64-pc-windows-gnu'
-            output: 'SecuArchive.exe'
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -40,39 +23,26 @@ jobs:
         run: npm install -g pnpm
 
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'x86_64-apple-darwin,aarch64-apple-darwin' || '' }}
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libssl-dev
-
-      - name: Install Windows dependencies
-        if: matrix.platform == 'windows-latest'
-        run: |
-          rustup target add x86_64-pc-windows-gnu
-          cargo install mingw-w64
-          choco install mingw
 
       - name: Install frontend dependencies
         run: pnpm install
 
       - name: Build
-        run: pnpm tauri build ${{ matrix.args }}
+        run: pnpm tauri build
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.output }}
+          name: SecuArchive-Linux
           path: |
-            src-tauri/target/release/bundle/**/*.exe
-            src-tauri/target/release/bundle/**/*.app
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.deb
-            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/AppImage/*.AppImage
 
   release:
     needs: build
@@ -80,9 +50,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
 
     steps:
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
+          name: SecuArchive-Linux
           path: artifacts
 
       - name: Create Release
